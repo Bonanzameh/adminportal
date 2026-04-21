@@ -3,7 +3,7 @@ version: "3.8"
 services:
   adminportal:
     build:
-      context: https://github.com/your-org/adminportal.git#main
+      context: https://github.com/Bonanzameh/adminportal.git#main
       dockerfile: Dockerfile
     container_name: adminportal
     restart: unless-stopped

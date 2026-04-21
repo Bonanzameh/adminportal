@@ -3,12 +3,16 @@ version: "3.8"
 services:
   adminportal:
     build:
-      context: .
+      context: https://github.com/Bonanzameh/adminportal.git#main
       dockerfile: Dockerfile
     container_name: adminportal
     restart: unless-stopped
     ports:
       - "3000:3000"
     volumes:
-      - ./data:/app/data
-      - ./generated-pdfs:/app/generated-pdfs
+      - adminportal_data:/app/data
+      - adminportal_pdfs:/app/generated-pdfs
+
+volumes:
+  adminportal_data:
+  adminportal_pdfs:

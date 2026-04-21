@@ -29,18 +29,22 @@ Open <http://localhost:3000>
 
 Configuration can be done directly in the Settings tab. `.env` is optional.
 
-## Docker (local repo)
+## Docker (zero-touch from git)
 
 ```bash
 docker compose up -d --build
 docker compose down
 ```
 
-No `.env` file is required. Configure Gmail account, app password, and recipients in the app Settings tab after first start.
+No `.env` file is required. The compose file is preconfigured to download/build from:
 
-## Docker (build from git)
+- `https://github.com/Bonanzameh/adminportal.git#main`
 
-Use `docker-compose.git.yml` and set the correct git URL/branch in the file.
+Configure Gmail account, app password, and recipients in the app Settings tab after first start.
+
+## Docker (alternate file)
+
+`docker-compose.git.yml` is also preconfigured for the same git source.
 
 ```bash
 docker compose -f docker-compose.git.yml up -d --build
