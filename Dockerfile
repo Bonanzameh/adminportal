@@ -1,9 +1,13 @@
-FROM node:20-alpine
+FROM node:20-bookworm-slim
 
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund
+RUN set -eux; \
+    npm config set fund false; \
+    npm config set audit false; \
+    npm config set update-notifier false; \
+    npm ci --omit=dev || npm install --omit=dev
 
 COPY src ./src
 COPY public ./public
@@ -17,4 +21,4 @@ EXPOSE 3000
 
 USER node
 
-CMD ["npm", "start"]
+CMD ["node", "src/server.js"]
