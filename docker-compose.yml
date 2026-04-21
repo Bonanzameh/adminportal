@@ -1,0 +1,14 @@
+services:
+  adminportal:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: adminportal
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+      - ./generated-pdfs:/app/generated-pdfs

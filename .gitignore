@@ -1,0 +1,6 @@
+node_modules/
+.env
+generated-pdfs/
+data/*.json
+.DS_Store
+adminportal/

@@ -1,0 +1,18 @@
+services:
+  adminportal:
+    build:
+      context: https://github.com/your-org/adminportal.git#main
+      dockerfile: Dockerfile
+    container_name: adminportal
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "3000:3000"
+    volumes:
+      - adminportal_data:/app/data
+      - adminportal_pdfs:/app/generated-pdfs
+
+volumes:
+  adminportal_data:
+  adminportal_pdfs:

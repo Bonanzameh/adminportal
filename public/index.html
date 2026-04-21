@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Adminportal PDF Mailer</title>
+    <link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <button id="menuBtn" class="menu-btn" type="button" aria-label="Open menu">☰</button>
+        <div>
+          <h1>Adminportal</h1>
+          <p>PDF generation and delivery</p>
+        </div>
+      </header>
+
+      <aside id="drawer" class="drawer">
+        <button class="nav-btn active" data-view="generateView" type="button">Generate</button>
+        <button class="nav-btn" data-view="settingsView" type="button">Settings</button>
+        <button class="nav-btn" data-view="billitView" type="button">Billit Upload</button>
+        <button class="nav-btn" data-view="templatesView" type="button">Templates</button>
+        <button class="nav-btn" data-view="autopilotView" type="button">Autopilot</button>
+        <button class="nav-btn" data-view="historyView" type="button">Sent Files</button>
+      </aside>
+      <div id="backdrop" class="backdrop hidden"></div>
+
+      <main class="workspace">
+        <section id="generateView" class="view active">
+          <form id="generateForm" class="grid-form">
+            <label>Document Type<select id="documentType" required><option value="VAT_PAYMENT">VAT Payment</option><option value="REIMBURSEMENT">Reimbursement</option><option value="TAX_PREPAY">Tax Prepay</option></select></label>
+            <label>Load Template<select id="templateId"><option value="">No template</option></select></label>
+            <label>Recipient<input id="sendTo" type="email" required /></label>
+            <label>Period Label<input id="periodLabel" type="text" /></label>
+            <label>Entity Name<input id="entityName" type="text" /></label>
+            <label>VAT Number<input id="vatNumber" type="text" /></label>
+            <label>Address<input id="address" type="text" /></label>
+            <label>Amount<input id="amount" type="text" placeholder="1234.56" /></label>
+            <label>Currency<input id="currency" type="text" value="EUR" /></label>
+            <label>Reference<input id="reference" type="text" /></label>
+            <label>IBAN<input id="iban" type="text" /></label>
+            <label>BIC<input id="bic" type="text" /></label>
+            <label>Recipient Name<input id="recipientName" type="text" /></label>
+            <label>Annex CSV<input id="annexCsv" type="file" accept=".csv,text/csv" /></label>
+            <label class="span-2">Notes<textarea id="notes" rows="2"></textarea></label>
+            <label class="checkbox"><input id="keepAsTemplate" type="checkbox" /> Keep as template</label>
+            <label id="templateNameWrap" class="hidden">Template Name<input id="templateName" type="text" placeholder="My VAT Template" /></label>
+            <label class="span-2">Template Body<div id="templateBodyEditor" class="editor"></div></label>
+            <button id="sendBtn" type="submit" class="span-2">Generate PDF & Send</button>
+          </form>
+        </section>
+
+        <section id="billitView" class="view">
+          <div class="stack">
+            <p class="hint">
+              Drop files below. Each file is proposed for individual email send to
+              <strong id="billitRecipientLabel"></strong>
+              with filename as subject and empty body.
+            </p>
+            <input id="billitFileInput" type="file" multiple class="hidden" />
+            <div id="billitDropzone" class="dropzone" role="button" tabindex="0">
+              Drag and drop files here, or click to select files
+            </div>
+            <div class="actions">
+              <button id="billitSendAllBtn" type="button">Send All Pending</button>
+              <button id="billitClearBtn" type="button">Clear Queue</button>
+            </div>
+            <ul id="billitQueueList" class="list"></ul>
+          </div>
+        </section>
+
+        <section id="settingsView" class="view">
+          <form id="settingsForm" class="grid-form">
+            <label class="span-2">Gmail Account<input id="settingsGmailUser" type="email" placeholder="your_gmail_address@example.com" required /></label>
+            <label class="span-2">Default Recipient<input id="settingsDefaultRecipient" type="email" placeholder="recipient@example.com" required /></label>
+            <label class="span-2">Billit Recipient<input id="settingsBillitRecipient" type="email" placeholder="billit_recipient@example.com" required /></label>
+            <label class="span-2">Gmail App Password<input id="settingsGmailAppPassword" type="password" placeholder="Leave empty to keep current key" autocomplete="off" /></label>
+            <div class="span-2">
+              <small id="settingsStatusText"></small>
+            </div>
+            <button id="saveSettingsBtn" type="submit" class="span-2">Save Settings</button>
+          </form>
+        </section>
+
+        <section id="templatesView" class="view">
+          <form id="templateEditorForm" class="grid-form">
+            <label class="span-2">Existing Template<select id="editTemplateId"><option value="">Select a template</option></select></label>
+            <label>Name<input id="editTemplateName" type="text" /></label>
+            <label>Document Type<select id="editDocumentType"><option value="VAT_PAYMENT">VAT Payment</option><option value="REIMBURSEMENT">Reimbursement</option><option value="TAX_PREPAY">Tax Prepay</option></select></label>
+            <label>IBAN<input id="editIban" type="text" /></label>
+            <label>BIC<input id="editBic" type="text" /></label>
+            <label>Recipient Name<input id="editRecipientName" type="text" /></label>
+            <label>Fixed Entity Name<input id="editEntityName" type="text" /></label>
+            <label>Fixed VAT Number<input id="editVatNumber" type="text" /></label>
+            <label>Fixed Address<input id="editAddress" type="text" /></label>
+            <label>Fixed Currency<input id="editCurrency" type="text" value="EUR" /></label>
+            <label class="span-2">Fixed Notes<textarea id="editNotes" rows="2"></textarea></label>
+            <label class="span-2">Template Body<div id="templateEditorBody" class="editor"></div></label>
+            <button type="submit" class="span-2">Save Template Changes</button>
+          </form>
+          <ul id="templateList" class="list"></ul>
+        </section>
+
+        <section id="autopilotView" class="view">
+          <form id="autopilotForm" class="grid-form">
+            <label class="checkbox span-2"><input id="autopilotEnabled" type="checkbox" /> Enable monthly auto-send</label>
+            <label>Run day of month<input id="runDayOfMonth" type="number" min="1" max="28" value="2" /></label>
+            <label>Run hour<input id="runHour" type="number" min="0" max="23" value="9" /></label>
+            <label>Run minute<input id="runMinute" type="number" min="0" max="59" value="0" /></label>
+            <label>Recipient<input id="autopilotRecipient" type="email" /></label>
+            <label>VAT template<select id="autoVatTemplate"></select></label>
+            <label>Reimbursement template<select id="autoReimbursementTemplate"></select></label>
+            <label>Tax prepay template<select id="autoTaxPrepayTemplate"></select></label>
+            <div class="actions span-2">
+              <button type="submit">Save Autopilot</button>
+              <button type="button" id="runNowBtn">Run Now</button>
+            </div>
+          </form>
+        </section>
+
+        <section id="historyView" class="view">
+          <div class="actions">
+            <button id="refreshHistoryBtn" type="button">Refresh</button>
+          </div>
+          <ul id="sentFilesList" class="list"></ul>
+        </section>
+
+        <p id="status"></p>
+      </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>
