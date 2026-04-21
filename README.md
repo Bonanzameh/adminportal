@@ -22,11 +22,12 @@ Adminportal generates administrative PDFs and sends them by email.
 
 ```bash
 npm install
-cp .env.example .env
 npm start
 ```
 
 Open <http://localhost:3000>
+
+Configuration can be done directly in the Settings tab. `.env` is optional.
 
 ## Docker (local repo)
 
@@ -34,6 +35,8 @@ Open <http://localhost:3000>
 docker compose up -d --build
 docker compose down
 ```
+
+No `.env` file is required. Configure Gmail account, app password, and recipients in the app Settings tab after first start.
 
 ## Docker (build from git)
 
@@ -59,4 +62,4 @@ Generated PDFs:
 ## Security notes
 
 - Never commit `.env`
-- Keep secrets only in `.env` or in-app settings
+- Keep secrets in in-app settings (or a server-only `.env` if you choose to use one)
