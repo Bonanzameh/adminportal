@@ -27,6 +27,10 @@ const {
   saveAppSettings
 } = require('./settingsStore');
 const { startAutopilotScheduler, runAutopilotOnce } = require('./autopilot');
+const { createChargingRouter } = require('./chargingRoutes');
+const { isDateString } = require('./chargingAccounting');
+const { markAllFinalReportsNeedsReview } = require('./chargingStore');
+const { startChargingReportScheduler } = require('./chargingReports');
 
 const app = express();
 
@@ -60,6 +64,15 @@ function looksLikeEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+function isValidTimezone(value) {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value }).format();
+    return true;
+  } catch (_err) {
+    return false;
+  }
+}
+
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, timestamp: new Date().toISOString() });
 });
@@ -69,55 +82,102 @@ app.get('/api/settings', (_req, res) => {
 });
 
 app.put('/api/settings', (req, res) => {
-  const {
-    gmailUser,
-    gmailAppPassword,
-    defaultRecipient,
-    billitRecipient
-  } = req.body;
-
+  const body = req.body || {};
   const patch = {};
 
-  if (gmailUser !== undefined) {
-    const nextGmailUser = sanitizeEmailValue(gmailUser);
-    if (!nextGmailUser || !looksLikeEmail(nextGmailUser)) {
-      return res.status(400).json({ error: 'gmailUser must be a valid email address.' });
+  for (const field of ['gmailUser', 'defaultRecipient', 'billitRecipient', 'chargingReportRecipient']) {
+    if (body[field] !== undefined) {
+      const value = sanitizeEmailValue(body[field]);
+      if (value && !looksLikeEmail(value)) {
+        return res.status(400).json({ error: `${field} must be a valid email address.` });
+      }
+      patch[field] = value;
     }
-    patch.gmailUser = nextGmailUser;
   }
 
-  if (defaultRecipient !== undefined) {
-    const nextDefaultRecipient = sanitizeEmailValue(defaultRecipient);
-    if (!nextDefaultRecipient || !looksLikeEmail(nextDefaultRecipient)) {
-      return res.status(400).json({ error: 'defaultRecipient must be a valid email address.' });
-    }
-    patch.defaultRecipient = nextDefaultRecipient;
+  if (body.gmailAppPassword !== undefined) {
+    const value = String(body.gmailAppPassword || '').trim();
+    if (value) patch.gmailAppPassword = value;
   }
 
-  if (billitRecipient !== undefined) {
-    const nextBillitRecipient = sanitizeEmailValue(billitRecipient);
-    if (!nextBillitRecipient || !looksLikeEmail(nextBillitRecipient)) {
-      return res.status(400).json({ error: 'billitRecipient must be a valid email address.' });
+  if (body.chargingApiToken !== undefined) {
+    const value = String(body.chargingApiToken || '').trim();
+    if (value.length < 24 || value.length > 512 || /\s/.test(value)) {
+      return res.status(400).json({ error: 'chargingApiToken must contain 24-512 characters without spaces.' });
     }
-    patch.billitRecipient = nextBillitRecipient;
+    patch.chargingApiToken = value;
   }
 
-  if (gmailAppPassword !== undefined) {
-    const nextAppPassword = String(gmailAppPassword || '').trim();
-    if (!nextAppPassword) {
-      return res.status(400).json({ error: 'gmailAppPassword cannot be empty when provided.' });
+  if (body.clearChargingApiToken === true) {
+    patch.chargingApiToken = '';
+  }
+
+  if (body.chargingTimezone !== undefined) {
+    const value = String(body.chargingTimezone || '').trim();
+    if (!value || !isValidTimezone(value)) {
+      return res.status(400).json({ error: 'chargingTimezone must be a valid IANA timezone.' });
     }
-    patch.gmailAppPassword = nextAppPassword;
+    patch.chargingTimezone = value;
+  }
+
+  if (body.chargingOpeningBalanceKwh !== undefined) {
+    const value = Number(body.chargingOpeningBalanceKwh);
+    if (!Number.isFinite(value) || value < 0 || value > 1000000) {
+      return res.status(400).json({ error: 'chargingOpeningBalanceKwh must be between 0 and 1000000.' });
+    }
+    patch.chargingOpeningBalanceKwh = value;
+  }
+
+  if (body.chargingOpeningBalanceDate !== undefined) {
+    const value = String(body.chargingOpeningBalanceDate || '').trim();
+    if (value && !isDateString(value)) {
+      return res.status(400).json({ error: 'chargingOpeningBalanceDate must use YYYY-MM-DD format.' });
+    }
+    patch.chargingOpeningBalanceDate = value;
+  }
+
+  for (const [field, maxLength] of [
+    ['chargingOpeningBalanceNote', 500],
+    ['chargingReportTitle', 160],
+    ['chargingReportIndication', 2000]
+  ]) {
+    if (body[field] !== undefined) {
+      const value = String(body[field] || '').trim();
+      if (value.length > maxLength) {
+        return res.status(400).json({ error: `${field} is too long.` });
+      }
+      patch[field] = value;
+    }
+  }
+
+  if (body.chargingAutoFinalize !== undefined) {
+    patch.chargingAutoFinalize = Boolean(body.chargingAutoFinalize);
   }
 
   if (Object.keys(patch).length === 0) {
     return res.status(400).json({ error: 'No settings fields were provided.' });
   }
 
+  const current = getAppSettings();
+  const reportFields = [
+    'chargingOpeningBalanceKwh',
+    'chargingOpeningBalanceDate',
+    'chargingOpeningBalanceNote',
+    'chargingReportTitle',
+    'chargingReportIndication'
+  ];
+  const reportChanged = reportFields.some((field) => (
+    Object.prototype.hasOwnProperty.call(patch, field) && current[field] !== patch[field]
+  ));
   saveAppSettings(patch);
+  if (reportChanged) {
+    markAllFinalReportsNeedsReview('Charging report settings or opening balance changed.');
+  }
 
   return res.json(getPublicSettings());
 });
+
+app.use('/api', createChargingRouter());
 
 app.get('/api/sent-files', (req, res) => {
   const limit = Math.max(1, Math.min(Number(req.query.limit || 50), 500));
@@ -447,4 +507,5 @@ app.get('*', (_req, res) => {
 app.listen(config.port, () => {
   console.log(`Adminportal running on http://localhost:${config.port}`);
   startAutopilotScheduler();
+  startChargingReportScheduler();
 });

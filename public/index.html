@@ -19,6 +19,7 @@
 
       <aside id="drawer" class="drawer">
         <button class="nav-btn active" data-view="generateView" type="button">Generate</button>
+        <button class="nav-btn" data-view="chargingView" type="button">EV Charging</button>
         <button class="nav-btn" data-view="settingsView" type="button">Settings</button>
         <button class="nav-btn" data-view="billitView" type="button">Billit Upload</button>
         <button class="nav-btn" data-view="templatesView" type="button">Templates</button>
@@ -52,6 +53,68 @@
           </form>
         </section>
 
+        <section id="chargingView" class="view">
+          <div class="charging-shell">
+            <div class="charging-toolbar">
+              <div>
+                <h2>EV charging accounting</h2>
+                <p id="chargingHeartbeatText" class="hint">Waiting for Home Assistant data.</p>
+              </div>
+              <label>Year<input id="chargingYear" type="number" min="2020" max="2200" /></label>
+              <label>Quarter<select id="chargingQuarter"><option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option></select></label>
+              <button id="chargingRefreshBtn" type="button">Refresh</button>
+            </div>
+
+            <div class="metric-grid">
+              <article class="metric-card"><span>Wall energy</span><strong id="chargingEnergyMetric">0.000 kWh</strong></article>
+              <article class="metric-card"><span>Amount due</span><strong id="chargingAmountMetric">0.00 EUR</strong></article>
+              <article class="metric-card"><span>Sessions</span><strong id="chargingSessionMetric">0</strong></article>
+              <article class="metric-card"><span>HA reconciliation</span><strong id="chargingReconciliationMetric">Waiting</strong></article>
+            </div>
+
+            <div class="charging-grid">
+              <article class="charging-panel charging-ledger-panel">
+                <div class="panel-heading">
+                  <div>
+                    <h3>Quarterly ledger</h3>
+                    <p id="chargingPeriodText" class="hint"></p>
+                  </div>
+                  <div class="actions compact-actions">
+                    <button id="chargingPreviewReportBtn" type="button">Preview PDF</button>
+                    <button id="chargingFinalizeReportBtn" type="button">Finalize</button>
+                    <button id="chargingSendReportBtn" type="button">Send final</button>
+                  </div>
+                </div>
+                <div id="chargingAlerts" class="alert-stack"></div>
+                <div id="chargingReportStatus" class="report-status"></div>
+                <div class="table-scroll">
+                  <table class="data-table">
+                    <thead><tr><th>Date</th><th>Session</th><th>Energy</th><th>Solar</th><th>Grid</th><th>Rate</th><th>Amount</th></tr></thead>
+                    <tbody id="chargingSessionsBody"></tbody>
+                  </table>
+                </div>
+              </article>
+
+              <aside class="charging-panel rate-panel">
+                <div class="panel-heading">
+                  <div>
+                    <h3>CREG rates</h3>
+                    <a id="cregRateLink" href="https://www.creg.be/nl/consumenten/prijzen-en-tarieven/creg-tarief-voor-terugbetaling-thuisladen-bedrijfswagens" target="_blank" rel="noopener noreferrer">Open official rate page</a>
+                  </div>
+                </div>
+                <form id="chargingRateForm" class="rate-form">
+                  <label>Start date<input id="chargingRateStart" type="date" required /></label>
+                  <label>End date (exclusive)<input id="chargingRateEnd" type="date" required /></label>
+                  <label>EUR per kWh<input id="chargingRateValue" type="number" min="0.0001" max="10" step="0.0001" required /></label>
+                  <label>Source note<input id="chargingRateNote" type="text" placeholder="CREG Q3 2026" /></label>
+                  <button type="submit">Save rate</button>
+                </form>
+                <div id="chargingRateList" class="rate-list"></div>
+              </aside>
+            </div>
+          </div>
+        </section>
+
         <section id="billitView" class="view">
           <div class="stack">
             <p class="hint">
@@ -73,10 +136,30 @@
 
         <section id="settingsView" class="view">
           <form id="settingsForm" class="grid-form">
-            <label class="span-2">Gmail Account<input id="settingsGmailUser" type="email" placeholder="your_gmail_address@example.com" required /></label>
-            <label class="span-2">Default Recipient<input id="settingsDefaultRecipient" type="email" placeholder="recipient@example.com" required /></label>
-            <label class="span-2">Billit Recipient<input id="settingsBillitRecipient" type="email" placeholder="billit_recipient@example.com" required /></label>
+            <h2 class="form-section-title span-2">Email delivery</h2>
+            <label class="span-2">Gmail Account<input id="settingsGmailUser" type="email" placeholder="your_gmail_address@example.com" /></label>
+            <label class="span-2">Default Recipient<input id="settingsDefaultRecipient" type="email" placeholder="recipient@example.com" /></label>
+            <label class="span-2">Billit Recipient<input id="settingsBillitRecipient" type="email" placeholder="billit_recipient@example.com" /></label>
             <label class="span-2">Gmail App Password<input id="settingsGmailAppPassword" type="password" placeholder="Leave empty to keep current key" autocomplete="off" /></label>
+
+            <h2 class="form-section-title span-2">Home Assistant charging feed</h2>
+            <label class="span-2">Bearer token<input id="settingsChargingApiToken" type="password" placeholder="Leave empty to keep current token" autocomplete="off" /></label>
+            <div class="actions span-2">
+              <button id="generateChargingTokenBtn" type="button">Generate secure token</button>
+              <button id="copyChargingTokenBtn" type="button">Copy token</button>
+            </div>
+            <label>Timezone<input id="settingsChargingTimezone" type="text" value="Europe/Brussels" /></label>
+            <label>Opening balance through date<input id="settingsChargingOpeningDate" type="date" /></label>
+            <label>Opening balance kWh<input id="settingsChargingOpeningKwh" type="number" min="0" step="0.001" /></label>
+            <label>Opening balance note<input id="settingsChargingOpeningNote" type="text" placeholder="Imported quarter balance" /></label>
+            <label class="span-2">Charging session endpoint<input id="chargingSessionEndpoint" type="text" readonly /></label>
+            <label class="span-2">Daily summary and resync endpoint<input id="chargingDailyEndpoint" type="text" readonly /></label>
+
+            <h2 class="form-section-title span-2">Quarterly charging report</h2>
+            <label>Report title<input id="settingsChargingReportTitle" type="text" /></label>
+            <label>Report recipient<input id="settingsChargingReportRecipient" type="email" placeholder="Uses default recipient when empty" /></label>
+            <label class="span-2">Reimbursement indication<textarea id="settingsChargingReportIndication" rows="3" placeholder="Terugbetaling opladen wagen; claimant and address"></textarea></label>
+            <label class="checkbox span-2"><input id="settingsChargingAutoFinalize" type="checkbox" /> Automatically finalize accumulated reports at quarter end</label>
             <div class="span-2">
               <small id="settingsStatusText"></small>
             </div>

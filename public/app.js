@@ -11,6 +11,19 @@ const els = {
   settingsDefaultRecipient: document.getElementById('settingsDefaultRecipient'),
   settingsBillitRecipient: document.getElementById('settingsBillitRecipient'),
   settingsGmailAppPassword: document.getElementById('settingsGmailAppPassword'),
+  settingsChargingApiToken: document.getElementById('settingsChargingApiToken'),
+  generateChargingTokenBtn: document.getElementById('generateChargingTokenBtn'),
+  copyChargingTokenBtn: document.getElementById('copyChargingTokenBtn'),
+  settingsChargingTimezone: document.getElementById('settingsChargingTimezone'),
+  settingsChargingOpeningDate: document.getElementById('settingsChargingOpeningDate'),
+  settingsChargingOpeningKwh: document.getElementById('settingsChargingOpeningKwh'),
+  settingsChargingOpeningNote: document.getElementById('settingsChargingOpeningNote'),
+  settingsChargingReportTitle: document.getElementById('settingsChargingReportTitle'),
+  settingsChargingReportRecipient: document.getElementById('settingsChargingReportRecipient'),
+  settingsChargingReportIndication: document.getElementById('settingsChargingReportIndication'),
+  settingsChargingAutoFinalize: document.getElementById('settingsChargingAutoFinalize'),
+  chargingSessionEndpoint: document.getElementById('chargingSessionEndpoint'),
+  chargingDailyEndpoint: document.getElementById('chargingDailyEndpoint'),
   settingsStatusText: document.getElementById('settingsStatusText'),
   saveSettingsBtn: document.getElementById('saveSettingsBtn'),
   documentType: document.getElementById('documentType'),
@@ -62,12 +75,35 @@ const els = {
   billitFileInput: document.getElementById('billitFileInput'),
   billitSendAllBtn: document.getElementById('billitSendAllBtn'),
   billitClearBtn: document.getElementById('billitClearBtn'),
-  billitQueueList: document.getElementById('billitQueueList')
+  billitQueueList: document.getElementById('billitQueueList'),
+  chargingYear: document.getElementById('chargingYear'),
+  chargingQuarter: document.getElementById('chargingQuarter'),
+  chargingRefreshBtn: document.getElementById('chargingRefreshBtn'),
+  chargingHeartbeatText: document.getElementById('chargingHeartbeatText'),
+  chargingEnergyMetric: document.getElementById('chargingEnergyMetric'),
+  chargingAmountMetric: document.getElementById('chargingAmountMetric'),
+  chargingSessionMetric: document.getElementById('chargingSessionMetric'),
+  chargingReconciliationMetric: document.getElementById('chargingReconciliationMetric'),
+  chargingPeriodText: document.getElementById('chargingPeriodText'),
+  chargingAlerts: document.getElementById('chargingAlerts'),
+  chargingReportStatus: document.getElementById('chargingReportStatus'),
+  chargingSessionsBody: document.getElementById('chargingSessionsBody'),
+  chargingPreviewReportBtn: document.getElementById('chargingPreviewReportBtn'),
+  chargingFinalizeReportBtn: document.getElementById('chargingFinalizeReportBtn'),
+  chargingSendReportBtn: document.getElementById('chargingSendReportBtn'),
+  chargingRateForm: document.getElementById('chargingRateForm'),
+  chargingRateStart: document.getElementById('chargingRateStart'),
+  chargingRateEnd: document.getElementById('chargingRateEnd'),
+  chargingRateValue: document.getElementById('chargingRateValue'),
+  chargingRateNote: document.getElementById('chargingRateNote'),
+  chargingRateList: document.getElementById('chargingRateList'),
+  cregRateLink: document.getElementById('cregRateLink')
 };
 
 let templates = [];
 let sendInProgress = false;
 let billitQueue = [];
+let chargingOverview = null;
 
 const quillGenerateBody = new Quill('#templateBodyEditor', {
   theme: 'snow',
@@ -107,6 +143,27 @@ function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function formatKwh(value) {
+  return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))
+    ? `${Number(value).toFixed(3)} kWh`
+    : '-';
+}
+
+function formatEur(value) {
+  return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))
+    ? `${Number(value).toFixed(2)} EUR`
+    : '-';
 }
 
 function openDrawer() {
@@ -459,6 +516,16 @@ function renderSettings(settings) {
   els.settingsGmailUser.value = gmailUser;
   els.settingsDefaultRecipient.value = defaultRecipient;
   els.settingsBillitRecipient.value = billitRecipient;
+  els.settingsChargingTimezone.value = settings.chargingTimezone || 'Europe/Brussels';
+  els.settingsChargingOpeningDate.value = settings.chargingOpeningBalanceDate || '';
+  els.settingsChargingOpeningKwh.value = Number(settings.chargingOpeningBalanceKwh || 0);
+  els.settingsChargingOpeningNote.value = settings.chargingOpeningBalanceNote || '';
+  els.settingsChargingReportTitle.value = settings.chargingReportTitle || 'Terugbetaling opladen wagen';
+  els.settingsChargingReportRecipient.value = settings.chargingReportRecipient || '';
+  els.settingsChargingReportIndication.value = settings.chargingReportIndication || '';
+  els.settingsChargingAutoFinalize.checked = Boolean(settings.chargingAutoFinalize);
+  els.chargingSessionEndpoint.value = `${window.location.origin}/api/v1/charging-sessions`;
+  els.chargingDailyEndpoint.value = `${window.location.origin}/api/v1/daily-summary`;
   els.billitRecipientLabel.textContent = billitRecipient || '(set in Settings)';
 
   if (!els.sendTo.value && defaultRecipient) {
@@ -472,12 +539,179 @@ function renderSettings(settings) {
   const keyStatus = settings.hasGmailAppPassword
     ? 'A Gmail app password is currently saved.'
     : 'No Gmail app password saved yet.';
-  els.settingsStatusText.textContent = keyStatus;
+  const tokenStatus = settings.hasChargingApiToken
+    ? 'A Home Assistant bearer token is saved.'
+    : 'No Home Assistant bearer token saved yet.';
+  els.settingsStatusText.textContent = `${keyStatus} ${tokenStatus}`;
 }
 
 async function loadSettings() {
   const settings = await api('/api/settings');
   renderSettings(settings);
+}
+
+function renderChargingReportStatus(reports) {
+  const finalReport = reports.find((report) => report.status === 'final');
+  const provisionalReport = reports.find((report) => report.status === 'provisional');
+  const report = finalReport || provisionalReport;
+  els.chargingSendReportBtn.disabled = !finalReport
+    || finalReport.needs_review
+    || Boolean(finalReport.sent_at);
+
+  if (!report) {
+    els.chargingReportStatus.innerHTML = '<span>No PDF snapshot generated for this quarter.</span>';
+    return;
+  }
+
+  const flags = [];
+  flags.push(report.status === 'final' ? `Final revision ${report.revision}` : 'Provisional');
+  if (report.sent_at) flags.push(`Sent ${new Date(report.sent_at).toLocaleString()}`);
+  if (report.needs_review) flags.push(`Needs review: ${escapeHtml(report.review_reason)}`);
+  els.chargingReportStatus.innerHTML = `
+    <span>${flags.join(' | ')}</span>
+    <a href="${escapeHtml(report.download_url)}" target="_blank" rel="noopener">Open PDF</a>
+  `;
+}
+
+function renderChargingOverview(data) {
+  chargingOverview = data;
+  const snapshot = data.snapshot;
+  els.chargingEnergyMetric.textContent = formatKwh(snapshot.totals.energy_kwh);
+  els.chargingAmountMetric.textContent = formatEur(snapshot.totals.amount_eur);
+  els.chargingSessionMetric.textContent = String(snapshot.session_count);
+  els.chargingPeriodText.textContent = `${snapshot.period_start} to ${snapshot.period_end} (end exclusive) | attributed by session start`;
+  els.cregRateLink.href = data.rate_source_url;
+
+  if (snapshot.reconciliation) {
+    const difference = snapshot.reconciliation.difference_kwh;
+    els.chargingReconciliationMetric.textContent = `${difference >= 0 ? '+' : ''}${difference.toFixed(3)} kWh`;
+    els.chargingReconciliationMetric.classList.toggle('metric-warning', Math.abs(difference) > 0.05);
+  } else {
+    els.chargingReconciliationMetric.textContent = 'Waiting';
+    els.chargingReconciliationMetric.classList.remove('metric-warning');
+  }
+
+  if (data.last_received_at) {
+    els.chargingHeartbeatText.textContent = `Last Home Assistant payload received ${new Date(data.last_received_at).toLocaleString()}.`;
+  } else {
+    els.chargingHeartbeatText.textContent = data.has_api_token
+      ? 'API ready; waiting for the first Home Assistant payload.'
+      : 'Configure the Home Assistant bearer token in Settings.';
+  }
+
+  const alerts = [];
+  if (!data.has_api_token) alerts.push(['warning', 'Home Assistant API token is not configured.']);
+  if (data.missing_heartbeats.length) {
+    alerts.push(['danger', `Missing daily heartbeat: ${data.missing_heartbeats.join(', ')}`]);
+  }
+  if (snapshot.missing_rate_session_ids.length) {
+    alerts.push(['warning', `${snapshot.missing_rate_session_ids.length} ledger row(s) have no CREG rate. The amount is incomplete.`]);
+  }
+  if (snapshot.meter_continuity_issues.length) {
+    alerts.push(['danger', `${snapshot.meter_continuity_issues.length} totaliser continuity issue(s) detected.`]);
+  }
+  if (snapshot.excluded_pre_opening_balance_count) {
+    alerts.push(['info', `${snapshot.excluded_pre_opening_balance_count} stored session(s) on or before the opening-balance date are excluded to prevent double counting.`]);
+  }
+  const finalReport = data.reports.find((report) => report.status === 'final');
+  if (finalReport?.needs_review) {
+    alerts.push(['danger', `Final report needs review: ${finalReport.review_reason}`]);
+  }
+  els.chargingAlerts.innerHTML = alerts
+    .map(([type, message]) => `<div class="inline-alert ${type}">${escapeHtml(message)}</div>`)
+    .join('');
+
+  if (!snapshot.entries.length) {
+    els.chargingSessionsBody.innerHTML = '<tr><td colspan="7" class="empty-cell">No charging entries in this quarter.</td></tr>';
+  } else {
+    els.chargingSessionsBody.innerHTML = snapshot.entries.map((entry) => {
+      const sessionLabel = entry.kind === 'opening_balance'
+        ? escapeHtml(entry.note || 'Opening balance')
+        : `${escapeHtml(entry.start.slice(11, 16))} - ${escapeHtml(entry.end.slice(11, 16))}`;
+      const rate = Number.isFinite(entry.rate_eur_per_kwh)
+        ? `${Number(entry.rate_eur_per_kwh).toFixed(4)} EUR`
+        : '<span class="missing-value">Missing</span>';
+      return `
+        <tr>
+          <td>${escapeHtml(entry.date)}</td>
+          <td title="${escapeHtml(entry.session_id)}">${sessionLabel}</td>
+          <td>${formatKwh(entry.energy_kwh)}</td>
+          <td>${formatKwh(entry.solar_kwh)}</td>
+          <td>${formatKwh(entry.grid_kwh)}</td>
+          <td>${rate}</td>
+          <td>${formatEur(entry.amount_eur)}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  renderChargingReportStatus(data.reports);
+}
+
+function renderChargingRates(payload) {
+  if (!payload.rates.length) {
+    els.chargingRateList.innerHTML = '<p class="hint">No rates saved yet.</p>';
+    return;
+  }
+  els.chargingRateList.innerHTML = payload.rates.map((rate) => `
+    <div class="rate-row">
+      <div>
+        <strong>${Number(rate.eur_per_kwh).toFixed(4)} EUR/kWh</strong>
+        <span>${escapeHtml(rate.period_start)} to ${escapeHtml(rate.period_end)}</span>
+        <small>${escapeHtml(rate.source_note || '')}</small>
+      </div>
+      <button type="button" class="delete-btn mini-btn" data-rate-start="${escapeHtml(rate.period_start)}">Delete</button>
+    </div>
+  `).join('');
+
+  els.chargingRateList.querySelectorAll('[data-rate-start]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      try {
+        await api(`/api/charging/rates/${encodeURIComponent(button.dataset.rateStart)}`, { method: 'DELETE' });
+        await loadCharging();
+        setStatus('CREG rate deleted. Affected final reports were flagged for review.');
+      } catch (err) {
+        setStatus(err.message, true);
+      }
+    });
+  });
+}
+
+async function loadCharging() {
+  const year = Number(els.chargingYear.value);
+  const quarter = Number(els.chargingQuarter.value);
+  const [overview, rates] = await Promise.all([
+    api(`/api/charging/overview?year=${year}&quarter=${quarter}`),
+    api('/api/charging/rates')
+  ]);
+  renderChargingOverview(overview);
+  renderChargingRates(rates);
+}
+
+async function generateChargingReport(finalize) {
+  const button = finalize ? els.chargingFinalizeReportBtn : els.chargingPreviewReportBtn;
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = finalize ? 'Finalizing...' : 'Generating...';
+  try {
+    const report = await api('/api/charging/reports', {
+      method: 'POST',
+      body: JSON.stringify({
+        year: Number(els.chargingYear.value),
+        quarter: Number(els.chargingQuarter.value),
+        finalize,
+        force: true
+      })
+    });
+    window.open(report.download_url, '_blank', 'noopener');
+    await loadCharging();
+    setStatus(finalize ? 'Quarterly charging report finalized.' : 'Charging report preview generated.');
+  } catch (err) {
+    setStatus(err.message, true);
+  } finally {
+    button.disabled = false;
+    button.textContent = originalLabel;
+  }
 }
 
 els.menuBtn.addEventListener('click', () => {
@@ -494,8 +728,62 @@ els.navBtns.forEach((btn) => {
       await loadSentFiles();
     } else if (btn.dataset.view === 'settingsView') {
       await loadSettings();
+    } else if (btn.dataset.view === 'chargingView') {
+      await loadCharging();
     }
   });
+});
+
+els.chargingRefreshBtn.addEventListener('click', async () => {
+  try {
+    await loadCharging();
+    setStatus('Charging ledger refreshed.');
+  } catch (err) {
+    setStatus(err.message, true);
+  }
+});
+
+els.chargingYear.addEventListener('change', () => loadCharging().catch((err) => setStatus(err.message, true)));
+els.chargingQuarter.addEventListener('change', () => loadCharging().catch((err) => setStatus(err.message, true)));
+els.chargingPreviewReportBtn.addEventListener('click', () => generateChargingReport(false));
+els.chargingFinalizeReportBtn.addEventListener('click', () => generateChargingReport(true));
+
+els.chargingSendReportBtn.addEventListener('click', async () => {
+  const finalReport = chargingOverview?.reports?.find((report) => report.status === 'final');
+  if (!finalReport) {
+    setStatus('Finalize the charging report before sending it.', true);
+    return;
+  }
+  els.chargingSendReportBtn.disabled = true;
+  try {
+    await api(`/api/charging/reports/${encodeURIComponent(finalReport.id)}/send`, { method: 'POST' });
+    await Promise.all([loadCharging(), loadSentFiles()]);
+    setStatus('Final charging reimbursement report sent.');
+  } catch (err) {
+    setStatus(err.message, true);
+    els.chargingSendReportBtn.disabled = false;
+  }
+});
+
+els.chargingRateForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    await api('/api/charging/rates', {
+      method: 'POST',
+      body: JSON.stringify({
+        period_start: els.chargingRateStart.value,
+        period_end: els.chargingRateEnd.value,
+        eur_per_kwh: Number(els.chargingRateValue.value),
+        source_note: els.chargingRateNote.value
+      })
+    });
+    els.chargingRateValue.value = '';
+    els.chargingRateNote.value = '';
+    await loadCharging();
+    setStatus('CREG rate saved.');
+  } catch (err) {
+    setStatus(err.message, true);
+  }
 });
 
 els.keepAsTemplate.addEventListener('change', () => {
@@ -557,11 +845,7 @@ els.settingsForm.addEventListener('submit', async (e) => {
   const defaultRecipient = els.settingsDefaultRecipient.value.trim();
   const billitRecipient = els.settingsBillitRecipient.value.trim();
   const gmailAppPassword = els.settingsGmailAppPassword.value.trim();
-
-  if (!gmailUser || !defaultRecipient || !billitRecipient) {
-    setStatus('Please fill Gmail account and both recipient addresses.', true);
-    return;
-  }
+  const chargingApiToken = els.settingsChargingApiToken.value.trim();
 
   els.saveSettingsBtn.disabled = true;
   els.saveSettingsBtn.textContent = 'Saving...';
@@ -569,11 +853,22 @@ els.settingsForm.addEventListener('submit', async (e) => {
     const payload = {
       gmailUser,
       defaultRecipient,
-      billitRecipient
+      billitRecipient,
+      chargingTimezone: els.settingsChargingTimezone.value.trim(),
+      chargingOpeningBalanceDate: els.settingsChargingOpeningDate.value,
+      chargingOpeningBalanceKwh: Number(els.settingsChargingOpeningKwh.value || 0),
+      chargingOpeningBalanceNote: els.settingsChargingOpeningNote.value.trim(),
+      chargingReportTitle: els.settingsChargingReportTitle.value.trim(),
+      chargingReportRecipient: els.settingsChargingReportRecipient.value.trim(),
+      chargingReportIndication: els.settingsChargingReportIndication.value.trim(),
+      chargingAutoFinalize: els.settingsChargingAutoFinalize.checked
     };
 
     if (gmailAppPassword) {
       payload.gmailAppPassword = gmailAppPassword;
+    }
+    if (chargingApiToken) {
+      payload.chargingApiToken = chargingApiToken;
     }
 
     await api('/api/settings', {
@@ -582,13 +877,38 @@ els.settingsForm.addEventListener('submit', async (e) => {
     });
 
     els.settingsGmailAppPassword.value = '';
+    els.settingsChargingApiToken.value = '';
     await loadSettings();
+    await loadCharging();
     setStatus('Settings saved.');
   } catch (err) {
     setStatus(err.message, true);
   } finally {
     els.saveSettingsBtn.disabled = false;
     els.saveSettingsBtn.textContent = 'Save Settings';
+  }
+});
+
+els.generateChargingTokenBtn.addEventListener('click', () => {
+  const bytes = new Uint8Array(32);
+  window.crypto.getRandomValues(bytes);
+  els.settingsChargingApiToken.value = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  setStatus('Secure token generated. Save Settings, then update Home Assistant with this token.');
+});
+
+els.copyChargingTokenBtn.addEventListener('click', async () => {
+  const token = els.settingsChargingApiToken.value;
+  if (!token) {
+    setStatus('Generate or enter a new token first. Saved tokens are not displayed again.', true);
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(token);
+    setStatus('Charging API token copied.');
+  } catch (_err) {
+    els.settingsChargingApiToken.select();
+    document.execCommand('copy');
+    setStatus('Charging API token copied.');
   }
 });
 
@@ -763,10 +1083,20 @@ els.billitClearBtn.addEventListener('click', () => {
 
 (async function init() {
   try {
+    const now = new Date();
+    const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
+    const quarterStartMonth = (currentQuarter - 1) * 3;
+    const quarterStart = new Date(Date.UTC(now.getFullYear(), quarterStartMonth, 1));
+    const quarterEnd = new Date(Date.UTC(now.getFullYear(), quarterStartMonth + 3, 1));
+    els.chargingYear.value = now.getFullYear();
+    els.chargingQuarter.value = currentQuarter;
+    els.chargingRateStart.value = quarterStart.toISOString().slice(0, 10);
+    els.chargingRateEnd.value = quarterEnd.toISOString().slice(0, 10);
     els.periodLabel.value = getCurrentMonthYearLabel();
     await loadTemplates();
-    await loadAutopilot();
     await loadSettings();
+    await loadAutopilot();
+    await loadCharging();
     await loadSentFiles();
     renderBillitQueue();
     setStatus('Ready.');

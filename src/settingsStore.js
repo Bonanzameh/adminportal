@@ -27,6 +27,15 @@ function getDefaultSettings() {
     gmailAppPassword: config.gmailAppPassword,
     defaultRecipient: config.defaultRecipient,
     billitRecipient: config.billitRecipient,
+    chargingApiToken: '',
+    chargingTimezone: 'Europe/Brussels',
+    chargingOpeningBalanceKwh: 0,
+    chargingOpeningBalanceDate: '',
+    chargingOpeningBalanceNote: '',
+    chargingReportTitle: 'Terugbetaling opladen wagen',
+    chargingReportIndication: '',
+    chargingReportRecipient: '',
+    chargingAutoFinalize: true,
     updatedAt: null
   };
 }
@@ -47,6 +56,15 @@ function getPublicSettings() {
     defaultRecipient: settings.defaultRecipient,
     billitRecipient: settings.billitRecipient,
     hasGmailAppPassword: Boolean(settings.gmailAppPassword),
+    hasChargingApiToken: Boolean(settings.chargingApiToken),
+    chargingTimezone: settings.chargingTimezone,
+    chargingOpeningBalanceKwh: settings.chargingOpeningBalanceKwh,
+    chargingOpeningBalanceDate: settings.chargingOpeningBalanceDate,
+    chargingOpeningBalanceNote: settings.chargingOpeningBalanceNote,
+    chargingReportTitle: settings.chargingReportTitle,
+    chargingReportIndication: settings.chargingReportIndication,
+    chargingReportRecipient: settings.chargingReportRecipient,
+    chargingAutoFinalize: Boolean(settings.chargingAutoFinalize),
     updatedAt: settings.updatedAt || null
   };
 }
