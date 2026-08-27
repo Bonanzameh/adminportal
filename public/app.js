@@ -97,7 +97,28 @@ const els = {
   chargingRateValue: document.getElementById('chargingRateValue'),
   chargingRateNote: document.getElementById('chargingRateNote'),
   chargingRateList: document.getElementById('chargingRateList'),
-  cregRateLink: document.getElementById('cregRateLink')
+  cregRateLink: document.getElementById('cregRateLink'),
+  chargingSessionDialog: document.getElementById('chargingSessionDialog'),
+  chargingSessionForm: document.getElementById('chargingSessionForm'),
+  chargingEditSessionId: document.getElementById('chargingEditSessionId'),
+  chargingEditStart: document.getElementById('chargingEditStart'),
+  chargingEditEnd: document.getElementById('chargingEditEnd'),
+  chargingEditEnergy: document.getElementById('chargingEditEnergy'),
+  chargingEditSolar: document.getElementById('chargingEditSolar'),
+  chargingEditGrid: document.getElementById('chargingEditGrid'),
+  chargingEditSoc: document.getElementById('chargingEditSoc'),
+  chargingEditMeterStart: document.getElementById('chargingEditMeterStart'),
+  chargingEditMeterEnd: document.getElementById('chargingEditMeterEnd'),
+  chargingEditCharger: document.getElementById('chargingEditCharger'),
+  chargingEditVehicle: document.getElementById('chargingEditVehicle'),
+  chargingEditTimezone: document.getElementById('chargingEditTimezone'),
+  chargingEditTariff: document.getElementById('chargingEditTariff'),
+  chargingEditTariffSource: document.getElementById('chargingEditTariffSource'),
+  chargingEditManualOverride: document.getElementById('chargingEditManualOverride'),
+  chargingEditOverrideNote: document.getElementById('chargingEditOverrideNote'),
+  chargingEditCloseBtn: document.getElementById('chargingEditCloseBtn'),
+  chargingEditCancelBtn: document.getElementById('chargingEditCancelBtn'),
+  chargingEditSaveBtn: document.getElementById('chargingEditSaveBtn')
 };
 
 let templates = [];
@@ -164,6 +185,10 @@ function formatEur(value) {
   return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))
     ? `${Number(value).toFixed(2)} EUR`
     : '-';
+}
+
+function inputNumberOrNull(input) {
+  return input.value.trim() === '' ? null : Number(input.value);
 }
 
 function openDrawer() {
@@ -622,17 +647,26 @@ function renderChargingOverview(data) {
     .join('');
 
   if (!snapshot.entries.length) {
-    els.chargingSessionsBody.innerHTML = '<tr><td colspan="7" class="empty-cell">No charging entries in this quarter.</td></tr>';
+    els.chargingSessionsBody.innerHTML = '<tr><td colspan="9" class="empty-cell">No charging entries in this quarter.</td></tr>';
   } else {
     els.chargingSessionsBody.innerHTML = snapshot.entries.map((entry) => {
       const sessionLabel = entry.kind === 'opening_balance'
         ? escapeHtml(entry.note || 'Opening balance')
         : `${escapeHtml(entry.start.slice(11, 16))} - ${escapeHtml(entry.end.slice(11, 16))}`;
       const rate = Number.isFinite(entry.rate_eur_per_kwh)
-        ? `${Number(entry.rate_eur_per_kwh).toFixed(4)} EUR`
+        ? `<div class="tariff-detail"><strong>${Number(entry.rate_eur_per_kwh).toFixed(4)} EUR/kWh</strong><small>${escapeHtml(entry.rate_source_note || `${entry.rate_period_start} to ${entry.rate_period_end}`)}</small></div>`
         : '<span class="missing-value">Missing</span>';
+      const isOpeningBalance = entry.kind === 'opening_balance';
+      const status = isOpeningBalance
+        ? '<span class="ledger-badge opening">Opening balance</span>'
+        : entry.manual_override
+          ? `<span class="ledger-badge protected" title="${escapeHtml(entry.manual_override_note || 'Protected manual correction')}">Protected</span>`
+          : '<span class="ledger-badge synced">HA synced</span>';
+      const editButton = isOpeningBalance
+        ? ''
+        : `<button type="button" class="mini-btn edit-session-btn" data-session-id="${escapeHtml(encodeURIComponent(entry.session_id))}">Edit</button>`;
       return `
-        <tr>
+        <tr class="${entry.manual_override ? 'manual-override-row' : ''}">
           <td>${escapeHtml(entry.date)}</td>
           <td title="${escapeHtml(entry.session_id)}">${sessionLabel}</td>
           <td>${formatKwh(entry.energy_kwh)}</td>
@@ -640,12 +674,47 @@ function renderChargingOverview(data) {
           <td>${formatKwh(entry.grid_kwh)}</td>
           <td>${rate}</td>
           <td>${formatEur(entry.amount_eur)}</td>
+          <td>${status}</td>
+          <td>${editButton}</td>
         </tr>
       `;
     }).join('');
   }
 
   renderChargingReportStatus(data.reports);
+}
+
+function setOptionalInput(input, value) {
+  input.value = value === null || value === undefined ? '' : value;
+}
+
+function openChargingSessionEditor(sessionId) {
+  const entry = chargingOverview?.snapshot?.entries?.find((item) => item.session_id === sessionId);
+  if (!entry || entry.kind !== 'session') {
+    setStatus('Charging session could not be found.', true);
+    return;
+  }
+
+  els.chargingEditSessionId.value = entry.session_id;
+  els.chargingEditStart.value = entry.start;
+  els.chargingEditEnd.value = entry.end;
+  setOptionalInput(els.chargingEditEnergy, entry.energy_kwh);
+  setOptionalInput(els.chargingEditSolar, entry.solar_kwh);
+  setOptionalInput(els.chargingEditGrid, entry.grid_kwh);
+  setOptionalInput(els.chargingEditSoc, entry.soc_end_pct);
+  setOptionalInput(els.chargingEditMeterStart, entry.meter_start_kwh);
+  setOptionalInput(els.chargingEditMeterEnd, entry.meter_end_kwh);
+  els.chargingEditCharger.value = entry.charger || '';
+  els.chargingEditVehicle.value = entry.vehicle || '';
+  els.chargingEditTimezone.value = entry.timezone || 'Europe/Brussels';
+  els.chargingEditTariff.value = Number.isFinite(entry.rate_eur_per_kwh)
+    ? `${Number(entry.rate_eur_per_kwh).toFixed(4)} EUR/kWh`
+    : 'No tariff applies';
+  els.chargingEditTariffSource.value = entry.rate_source_note
+    || (entry.rate_period_start ? `${entry.rate_period_start} to ${entry.rate_period_end}` : 'No matching tariff period');
+  els.chargingEditManualOverride.checked = true;
+  els.chargingEditOverrideNote.value = entry.manual_override_note || '';
+  els.chargingSessionDialog.showModal();
 }
 
 function renderChargingRates(payload) {
@@ -783,6 +852,57 @@ els.chargingRateForm.addEventListener('submit', async (e) => {
     setStatus('CREG rate saved.');
   } catch (err) {
     setStatus(err.message, true);
+  }
+});
+
+els.chargingSessionsBody.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-session-id]');
+  if (!button) return;
+  openChargingSessionEditor(decodeURIComponent(button.dataset.sessionId));
+});
+
+function closeChargingSessionEditor() {
+  els.chargingSessionDialog.close();
+}
+
+els.chargingEditCloseBtn.addEventListener('click', closeChargingSessionEditor);
+els.chargingEditCancelBtn.addEventListener('click', closeChargingSessionEditor);
+
+els.chargingSessionForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const sessionId = els.chargingEditSessionId.value;
+  const protectCorrection = els.chargingEditManualOverride.checked;
+  els.chargingEditSaveBtn.disabled = true;
+  els.chargingEditSaveBtn.textContent = 'Saving...';
+  try {
+    await api(`/api/charging/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        start: els.chargingEditStart.value,
+        end: els.chargingEditEnd.value,
+        timezone: els.chargingEditTimezone.value.trim(),
+        energy_kwh: inputNumberOrNull(els.chargingEditEnergy),
+        solar_kwh: inputNumberOrNull(els.chargingEditSolar),
+        grid_kwh: inputNumberOrNull(els.chargingEditGrid),
+        meter_start_kwh: inputNumberOrNull(els.chargingEditMeterStart),
+        meter_end_kwh: inputNumberOrNull(els.chargingEditMeterEnd),
+        soc_end_pct: inputNumberOrNull(els.chargingEditSoc),
+        charger: els.chargingEditCharger.value.trim(),
+        vehicle: els.chargingEditVehicle.value.trim(),
+        manual_override: protectCorrection,
+        manual_override_note: els.chargingEditOverrideNote.value.trim()
+      })
+    });
+    closeChargingSessionEditor();
+    await loadCharging();
+    setStatus(protectCorrection
+      ? 'Session corrected and protected from Home Assistant sync.'
+      : 'Session corrected. Home Assistant may replace it on the next sync.');
+  } catch (err) {
+    setStatus(err.message, true);
+  } finally {
+    els.chargingEditSaveBtn.disabled = false;
+    els.chargingEditSaveBtn.textContent = 'Save correction';
   }
 });
 

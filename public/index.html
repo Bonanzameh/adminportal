@@ -89,7 +89,7 @@
                 <div id="chargingReportStatus" class="report-status"></div>
                 <div class="table-scroll">
                   <table class="data-table">
-                    <thead><tr><th>Date</th><th>Session</th><th>Energy</th><th>Solar</th><th>Grid</th><th>Rate</th><th>Amount</th></tr></thead>
+                    <thead><tr><th>Date</th><th>Session</th><th>Energy</th><th>Solar</th><th>Grid</th><th>CREG tariff</th><th>Amount</th><th>Status</th><th></th></tr></thead>
                     <tbody id="chargingSessionsBody"></tbody>
                   </table>
                 </div>
@@ -213,6 +213,40 @@
         <p id="status"></p>
       </main>
     </div>
+
+    <dialog id="chargingSessionDialog" class="session-dialog">
+      <form id="chargingSessionForm" class="session-dialog-form">
+        <div class="dialog-heading">
+          <div>
+            <h2>Correct charging session</h2>
+            <p>Protected corrections are not overwritten by later Home Assistant syncs.</p>
+          </div>
+          <button id="chargingEditCloseBtn" type="button" class="secondary-btn">Close</button>
+        </div>
+        <div class="session-edit-grid">
+          <label class="span-2">Session ID<input id="chargingEditSessionId" type="text" readonly /></label>
+          <label>Start<input id="chargingEditStart" type="datetime-local" step="1" required /></label>
+          <label>End<input id="chargingEditEnd" type="datetime-local" step="1" required /></label>
+          <label>Timezone<input id="chargingEditTimezone" type="text" maxlength="80" required /></label>
+          <label>Wall energy (kWh)<input id="chargingEditEnergy" type="number" min="0" max="1000" step="0.001" required /></label>
+          <label>Solar energy (kWh)<input id="chargingEditSolar" type="number" min="0" max="1000" step="0.001" /></label>
+          <label>Grid energy (kWh)<input id="chargingEditGrid" type="number" min="0" max="1000" step="0.001" /></label>
+          <label>Meter start (kWh)<input id="chargingEditMeterStart" type="number" min="0" step="0.001" /></label>
+          <label>Meter end (kWh)<input id="chargingEditMeterEnd" type="number" min="0" step="0.001" /></label>
+          <label>State of charge (%)<input id="chargingEditSoc" type="number" min="-1" max="100" step="0.1" /></label>
+          <label>Charger<input id="chargingEditCharger" type="text" maxlength="120" /></label>
+          <label>Vehicle<input id="chargingEditVehicle" type="text" maxlength="160" /></label>
+          <label>Applied CREG tariff<input id="chargingEditTariff" type="text" readonly /></label>
+          <label class="span-2">Tariff source<input id="chargingEditTariffSource" type="text" readonly /></label>
+          <label class="checkbox span-2 override-checkbox"><input id="chargingEditManualOverride" type="checkbox" /> Protect this correction from Home Assistant sync</label>
+          <label class="span-2">Correction note<textarea id="chargingEditOverrideNote" rows="2" maxlength="500" placeholder="Why this session was corrected"></textarea></label>
+        </div>
+        <div class="dialog-actions">
+          <button id="chargingEditCancelBtn" type="button" class="secondary-btn">Cancel</button>
+          <button id="chargingEditSaveBtn" type="submit">Save correction</button>
+        </div>
+      </form>
+    </dialog>
 
     <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
     <script src="/app.js"></script>

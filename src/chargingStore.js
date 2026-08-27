@@ -42,6 +42,7 @@ function materialSession(record) {
   delete copy.first_received_at;
   delete copy.received_at;
   delete copy.updated_at;
+  delete copy.last_sync_received_at;
   return copy;
 }
 
@@ -53,9 +54,11 @@ function upsertSession(session) {
   if (index === -1) {
     const record = {
       ...session,
+      manual_override: false,
       first_received_at: now,
       received_at: now,
-      updated_at: now
+      updated_at: now,
+      last_sync_received_at: now
     };
     sessions.push(record);
     sessions.sort((a, b) => String(b.start).localeCompare(String(a.start)));
@@ -64,6 +67,17 @@ function upsertSession(session) {
   }
 
   const previous = sessions[index];
+  if (previous.manual_override) {
+    const record = {
+      ...previous,
+      received_at: now,
+      last_sync_received_at: now
+    };
+    sessions[index] = record;
+    writeJson(config.chargingSessionsFile, sessions);
+    return { action: 'protected', record, changed: false };
+  }
+
   const definedPatch = Object.fromEntries(
     Object.entries(session).filter(([, value]) => value !== undefined)
   );
@@ -72,13 +86,42 @@ function upsertSession(session) {
     ...definedPatch,
     first_received_at: previous.first_received_at || now,
     received_at: now,
-    updated_at: now
+    updated_at: now,
+    last_sync_received_at: now
   };
   const changed = JSON.stringify(materialSession(previous)) !== JSON.stringify(materialSession(record));
   sessions[index] = record;
   sessions.sort((a, b) => String(b.start).localeCompare(String(a.start)));
   writeJson(config.chargingSessionsFile, sessions);
   return { action: changed ? 'updated' : 'unchanged', record, changed };
+}
+
+function updateSessionManually(sessionId, session, { manualOverride, overrideNote }) {
+  const sessions = getSessions();
+  const index = sessions.findIndex((item) => item.session_id === sessionId);
+  if (index === -1) return null;
+
+  const previous = sessions[index];
+  const now = new Date().toISOString();
+  const record = {
+    ...previous,
+    ...session,
+    session_id: previous.session_id,
+    manual_override: Boolean(manualOverride),
+    manual_override_note: String(overrideNote || ''),
+    manual_override_at: manualOverride ? now : null,
+    manually_updated_at: now,
+    updated_at: now
+  };
+  sessions[index] = record;
+  sessions.sort((a, b) => String(b.start).localeCompare(String(a.start)));
+  writeJson(config.chargingSessionsFile, sessions);
+  return {
+    action: 'updated',
+    record,
+    previous,
+    changed: JSON.stringify(materialSession(previous)) !== JSON.stringify(materialSession(record))
+  };
 }
 
 function getDailyTotals() {
@@ -208,6 +251,7 @@ function markAllFinalReportsNeedsReview(reason) {
 module.exports = {
   getSessions,
   upsertSession,
+  updateSessionManually,
   getDailyTotals,
   upsertDailyTotal,
   getRates,

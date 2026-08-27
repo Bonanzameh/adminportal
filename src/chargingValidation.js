@@ -31,10 +31,13 @@ function cleanNumber(value, field, { required = false, min = 0, max = Number.MAX
 
 function cleanTimestamp(value, field) {
   const result = cleanString(value, field, { required: true, max: 40 });
-  if (!localDateFromTimestamp(result)) {
+  const normalized = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(result)
+    ? `${result}:00`
+    : result;
+  if (!localDateFromTimestamp(normalized)) {
     throw validationError(`${field} must use local ISO format YYYY-MM-DDTHH:mm:ss.`);
   }
-  return result;
+  return normalized;
 }
 
 function validateSchema(payload, expectedEvent) {
@@ -127,9 +130,28 @@ function validateSessionResync(payload) {
   return payload.sessions.map((session) => normalizeSession(session, defaults));
 }
 
+function validateManualSessionUpdate(payload, sessionId) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw validationError('A JSON object is required.');
+  }
+  if (typeof payload.manual_override !== 'boolean') {
+    throw validationError('manual_override must be true or false.');
+  }
+
+  return {
+    session: normalizeSession({
+      ...payload,
+      session_id: sessionId
+    }),
+    manualOverride: payload.manual_override,
+    overrideNote: cleanString(payload.manual_override_note, 'manual_override_note', { max: 500 }) || ''
+  };
+}
+
 module.exports = {
   validationError,
   validateChargingSession,
   validateDailySummary,
-  validateSessionResync
+  validateSessionResync,
+  validateManualSessionUpdate
 };

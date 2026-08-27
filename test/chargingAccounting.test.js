@@ -9,7 +9,7 @@ const {
   quarterKeyFromDate,
   findMissingDailySummaries
 } = require('../src/chargingAccounting');
-const { validateSessionResync } = require('../src/chargingValidation');
+const { validateSessionResync, validateManualSessionUpdate } = require('../src/chargingValidation');
 
 const baseSettings = {
   chargingTimezone: 'Europe/Brussels',
@@ -71,6 +71,8 @@ test('includes opening balance and rounds only the final reimbursement total', (
   assert.equal(snapshot.totals.energy_kwh, 167.052);
   assert.equal(snapshot.totals.amount_eur, 51.28);
   assert.equal(snapshot.entries[0].kind, 'opening_balance');
+  assert.equal(snapshot.entries[1].rate_eur_per_kwh, 0.307);
+  assert.equal(snapshot.entries[1].rate_source_note, 'CREG Q3 2026');
   assert.deepEqual(snapshot.missing_rate_session_ids, []);
 });
 
@@ -150,6 +152,21 @@ test('accepts a reduced resync record', () => {
   assert.equal(sessions[0].timezone, 'Europe/Brussels');
 });
 
+test('normalizes browser datetime-local values when manually correcting a session', () => {
+  const update = validateManualSessionUpdate({
+    start: '2026-08-27T18:00',
+    end: '2026-08-27T20:00',
+    timezone: 'Europe/Brussels',
+    energy_kwh: 9.75,
+    manual_override: true,
+    manual_override_note: 'Meter correction'
+  }, 'manual-session');
+
+  assert.equal(update.session.start, '2026-08-27T18:00:00');
+  assert.equal(update.session.end, '2026-08-27T20:00:00');
+  assert.equal(update.manualOverride, true);
+});
+
 test('reduced resync does not erase meter fields from a richer session', () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'adminportal-store-test-'));
   const previousDataDir = process.env.DATA_DIR;
@@ -177,6 +194,50 @@ test('reduced resync does not erase meter fields from a richer session', () => {
 
   assert.equal(getSessions()[0].meter_start_kwh, 123.451);
   assert.equal(getSessions()[0].meter_end_kwh, 139.725);
+  fs.rmSync(tempDir, { recursive: true, force: true });
+  if (previousDataDir === undefined) delete process.env.DATA_DIR;
+  else process.env.DATA_DIR = previousDataDir;
+});
+
+test('protected manual corrections are not overwritten by Home Assistant resync', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'adminportal-override-test-'));
+  const previousDataDir = process.env.DATA_DIR;
+  process.env.DATA_DIR = tempDir;
+  delete require.cache[require.resolve('../src/config')];
+  delete require.cache[require.resolve('../src/chargingStore')];
+  const { upsertSession, updateSessionManually, getSessions } = require('../src/chargingStore');
+  const original = {
+    session_id: 'protected-session',
+    start: '2026-08-27T18:00:00',
+    end: '2026-08-27T20:00:00',
+    timezone: 'Europe/Brussels',
+    energy_kwh: 10,
+    solar_kwh: 2,
+    grid_kwh: 8,
+    charger: 'charger',
+    vehicle: 'vehicle'
+  };
+
+  upsertSession(original);
+  updateSessionManually('protected-session', {
+    ...original,
+    energy_kwh: 9.5,
+    solar_kwh: 1.5
+  }, { manualOverride: true, overrideNote: 'Meter correction' });
+  const protectedResult = upsertSession({ ...original, energy_kwh: 11 });
+
+  assert.equal(protectedResult.action, 'protected');
+  assert.equal(getSessions()[0].energy_kwh, 9.5);
+  assert.equal(getSessions()[0].manual_override, true);
+  assert.equal(getSessions()[0].manual_override_note, 'Meter correction');
+
+  updateSessionManually('protected-session', {
+    ...getSessions()[0]
+  }, { manualOverride: false, overrideNote: '' });
+  const unprotectedResult = upsertSession({ ...original, energy_kwh: 11 });
+
+  assert.equal(unprotectedResult.action, 'updated');
+  assert.equal(getSessions()[0].energy_kwh, 11);
   fs.rmSync(tempDir, { recursive: true, force: true });
   if (previousDataDir === undefined) delete process.env.DATA_DIR;
   else process.env.DATA_DIR = previousDataDir;

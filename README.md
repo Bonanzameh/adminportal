@@ -69,6 +69,8 @@ Endpoints:
 
 Session records are upserted by `session_id`. A reduced resync record does not remove meter readings already received from the full session event. Daily summaries are used as heartbeats and for quarter reconciliation.
 
+Charging session rows can be corrected from the EV Charging ledger. Corrections can be marked as protected manual overrides so later Home Assistant session pushes and resyncs cannot replace them. The ledger shows the applied CREG tariff, source note, calculated amount, and sync/override status for every row.
+
 ## Charging reports
 
 - Sessions are attributed to the quarter and CREG rate covering their local start timestamp.

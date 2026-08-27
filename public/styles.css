@@ -376,6 +376,144 @@ input[readonly] {
   background: #f4f8f6;
 }
 
+.data-table tbody tr.manual-override-row {
+  background: #fff8e8;
+}
+
+.tariff-detail {
+  display: grid;
+  gap: 2px;
+}
+
+.tariff-detail strong {
+  font-size: 11px;
+}
+
+.tariff-detail small {
+  max-width: 170px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+}
+
+.ledger-badge {
+  display: inline-block;
+  padding: 3px 6px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.ledger-badge.synced {
+  color: #1e40af;
+  background: #dbeafe;
+}
+
+.ledger-badge.protected {
+  color: #854d0e;
+  background: #fef3c7;
+}
+
+.ledger-badge.opening {
+  color: #475569;
+  background: #e2e8f0;
+}
+
+.edit-session-btn {
+  padding: 4px 7px;
+}
+
+.session-dialog {
+  width: min(900px, calc(100vw - 28px));
+  max-height: calc(100vh - 28px);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+}
+
+.session-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.52);
+  backdrop-filter: blur(2px);
+}
+
+.session-dialog-form {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  max-height: calc(100vh - 30px);
+}
+
+.dialog-heading,
+.dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.dialog-heading {
+  border-bottom: 1px solid var(--border);
+  background: #f4faf7;
+}
+
+.dialog-heading h2,
+.dialog-heading p {
+  margin: 0;
+}
+
+.dialog-heading h2 {
+  font-size: 17px;
+}
+
+.dialog-heading p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.session-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px 9px;
+  padding: 11px 16px;
+  overflow: auto;
+}
+
+.session-edit-grid .span-2 {
+  grid-column: 1 / -1;
+}
+
+.override-checkbox {
+  padding: 9px;
+  border: 1px solid #f5d18a;
+  border-radius: 8px;
+  color: #854d0e;
+  background: #fff8e8;
+  font-weight: 600;
+}
+
+.dialog-actions {
+  justify-content: flex-end;
+  border-top: 1px solid var(--border);
+  background: #fff;
+}
+
+.secondary-btn {
+  color: var(--text);
+  border-color: var(--border);
+  background: #fff;
+}
+
+.secondary-btn:hover {
+  color: var(--text);
+  background: #edf3f5;
+}
+
 .empty-cell {
   height: 80px;
   color: var(--muted);
@@ -624,5 +762,13 @@ input[readonly] {
 
   .charging-ledger-panel {
     min-height: 420px;
+  }
+
+  .session-edit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .session-edit-grid .span-2 {
+    grid-column: auto;
   }
 }

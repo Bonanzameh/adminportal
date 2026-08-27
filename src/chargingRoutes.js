@@ -6,6 +6,7 @@ const { getAppSettings } = require('./settingsStore');
 const {
   getSessions,
   upsertSession,
+  updateSessionManually,
   getDailyTotals,
   upsertDailyTotal,
   getRates,
@@ -27,7 +28,8 @@ const {
 const {
   validateChargingSession,
   validateDailySummary,
-  validateSessionResync
+  validateSessionResync,
+  validateManualSessionUpdate
 } = require('./chargingValidation');
 const {
   publicReport,
@@ -83,7 +85,7 @@ function createChargingRouter() {
         ok: true,
         action: result.action,
         session_id: session.session_id,
-        quality_issues: session.quality_issues
+        quality_issues: result.record.quality_issues || []
       });
     } catch (error) {
       return routeError(res, error);
@@ -108,7 +110,7 @@ function createChargingRouter() {
 
       if (req.body?.event === 'session_resync') {
         const sessions = validateSessionResync(req.body);
-        const counts = { created: 0, updated: 0, unchanged: 0 };
+        const counts = { created: 0, updated: 0, unchanged: 0, protected: 0 };
         sessions.forEach((session) => {
           const result = upsertSession(session);
           counts[result.action] += 1;
@@ -120,6 +122,34 @@ function createChargingRouter() {
       }
 
       return res.status(400).json({ error: 'event must be daily_summary or session_resync.' });
+    } catch (error) {
+      return routeError(res, error);
+    }
+  });
+
+  router.patch('/charging/sessions/:sessionId', (req, res) => {
+    try {
+      const sessionId = req.params.sessionId;
+      const update = validateManualSessionUpdate(req.body, sessionId);
+      const result = updateSessionManually(sessionId, update.session, update);
+      if (!result) return res.status(404).json({ error: 'Charging session not found.' });
+      if (result.changed) {
+        markFinalReportNeedsReview(
+          result.previous.start,
+          'A charging session was manually corrected after finalization.'
+        );
+        markFinalReportNeedsReview(
+          update.session.start,
+          'A charging session was manually corrected after finalization.'
+        );
+      }
+      return res.json({
+        ok: true,
+        action: result.action,
+        session_id: sessionId,
+        manual_override: result.record.manual_override,
+        quality_issues: result.record.quality_issues
+      });
     } catch (error) {
       return routeError(res, error);
     }
